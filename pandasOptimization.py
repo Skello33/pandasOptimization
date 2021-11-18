@@ -6,73 +6,93 @@ import tasks
 
 
 def run_tasks(arg: argparse.Namespace) -> list:
-    """
-    run the demo tasks and gather usage statistics
+    """Runs the demo tasks and gathers resource usage statistics.
 
-    :param arg: cmd line arguments
-    :return: list of usage stats
+    :param arg: Parsed arguments from the command line.
+    :return: List of gathered usage statistics.
     """
+
     functions = {
-        'pandas': tasks.pandas_main,
-        'modin': tasks.modin_subp,
-        'multiproc': tasks.multiproc_subp,
-        'dask': tasks.dask_subp
+        u'pandas': tasks.pandas_main,
+        u'modin': tasks.modin_subp,
+        u'multiproc': tasks.multiproc_subp,
+        u'dask': tasks.dask_subp
     }
     if arg.task is None:
-        # start_time = ti.default_timer()
         result = [functions[func](arg) for func in functions]
-        # print('It all took {} seconds.'.format(ti.default_timer() - start_time))
     else:
         result = []
         for task in arg.task:
             result.append(functions[task](arg))
-        # start_time = ti.default_timer()
-        # result = functions[arg.task](arg)
-        # print('It all took {} seconds.'.format(ti.default_timer() - start_time))
     return result
 
 
 def create_parser() -> argparse.ArgumentParser:
-    """
-    creates command line arguments parser
+    """Creates command line arguments parser.
 
-    :return: cmd arguments parser
+    :return: Parser for command line arguments.
     """
-    new_parser = argparse.ArgumentParser(description='Demo pandas optimization solutions')
-    new_parser.add_argument('-p', '--path', type=str, required=True, help='path to the file with dataset')
-    # new_parser.add_argument('-r', '--runs', type=int, required=False, help='number of program runs')
-    new_parser.add_argument('--cluster', type=str, required=False, metavar='ADDRESS',
-                            help='address of the remote cluster that should be used, if not specified, program uses a '
-                                 'locally created cluster')
-    new_parser.add_argument('--task', type=str, required=False,
-                            help='specify which tasks to execute, if not specified, all tasks will be run',
-                            choices=['pandas', 'dask', 'multiproc', 'modin'], nargs='+')
-    new_parser.add_argument('--file', type=str, required=False, default='usage_stats.csv',
-                            help='specify the file where the program should write usage statistics from its runs, '
-                                 'uses usage_stats.csv as default if not specified')
-    new_parser.add_argument('--plot', required=False, help='display the usage statistics graph', action='store_true')
+
+    new_parser = argparse.ArgumentParser(
+        description=u'Demo pandas optimization solutions.'
+    )
+    new_parser.add_argument(
+        u'-p', u'--path',
+        type=str,
+        required=True,
+        help=u'Path to the file with dataset.'
+    )
+    new_parser.add_argument(
+        u'--cluster',
+        type=str,
+        required=False,
+        metavar=u'ADDRESS',
+        help=u'Address of the remote cluster that should be used, if not specified, program uses a '
+             u'locally created cluster.'
+    )
+    new_parser.add_argument(
+        u'--task',
+        type=str,
+        required=False,
+        choices=[u'pandas', u'dask', u'multiproc', u'modin'],
+        nargs=u'+',
+        help=u'Specify which tasks to execute, if not specified, all tasks will be run.'
+    )
+    new_parser.add_argument(
+        u'--file',
+        type=str,
+        required=False,
+        default=u'usage_stats.csv',
+        help=u'specify the file where the program should write usage statistics from its runs, '
+             u'uses usage_stats.csv as default if not specified'
+    )
+    new_parser.add_argument(
+        u'--plot',
+        required=False,
+        action=u'store_true',
+        help=u'display the usage statistics graph'
+    )
     return new_parser
 
 
 def plot_results(file: str):
-    """
-    function for usage stats plotting
+    """Displays usage statistics plot based on the data in file.
 
-    :param file: plot data file
+    :param file: Data for usage stats plotting.
     """
+
     df = pd.read_csv(file)
     task_grp = df.groupby('task').mean()
     task = task_grp.index.tolist()
-    # todo display only avg stats per each task
     fig = make_subplots(
         rows=1, cols=2,
-        subplot_titles=('Memory usage', 'Total time')
+        subplot_titles=(u'Memory usage', u'Total time')
     )
     fig.add_trace(
         go.Bar(
             x=task,
             y=task_grp['max_mem_usage'],
-            name='Memory',
+            name=u'Memory',
         ),
         row=1, col=1
     )
@@ -80,52 +100,52 @@ def plot_results(file: str):
         go.Bar(
             x=task,
             y=task_grp['total_time'],
-            name='Time'
+            name=u'Time'
         ),
         row=1, col=2
     )
-    fig['layout']['yaxis']['title'] = 'Max memory used in KB'
-    fig['layout']['yaxis2']['title'] = 'Total time in sec'
+    fig['layout']['yaxis']['title'] = u'Max memory used in KB'
+    fig['layout']['yaxis2']['title'] = u'Total time in sec'
     fig.show()
 
 
 def write_results(result: list, file: str):
-    """
-    writes usage stats from a single run into output file
+    """Writes usage stats from a single run into output file.
 
-    :param result: usage stats data to be written
-    :param file: output file
+    :param result: Gathered resource usage statistics.
+    :param file: File for data storage.
     """
+
     try:
         f = open(file)
     except FileNotFoundError:
         with open(file, 'w') as f:
-            print('Creating a new file for usage stats...')
-            f.write('task,max_mem_usage,total_time\n')
+            print(u'Creating a new file for usage stats...')
+            f.write(u'task,max_mem_usage,total_time\n')
     finally:
         f.close()
     with open(file, 'a') as f:
         # write if multiple tasks were run
-        if type(result[0]) is tuple:
+        if isinstance(result[0], tuple):
             for res in result:
                 res = modify_stats(res)
-                f.write('{}\n'.format(res))
+                f.write(u'{}\n'.format(res))
         # write if only one task was run
-        elif type(result[0]) is str:
+        elif isinstance(result[0], str):
             res = modify_stats(result)
-            f.write('{}\n'.format(res))
+            f.write(u'{}\n'.format(res))
 
 
 def modify_stats(stats: list) -> str:
-    """
-    reformat the result into csv style
+    """Reformat the result data into csv style.
 
-    :param stats: input line to reformat
-    :return: string with a reformatted line for csv
+    :param stats: List of inputs for reformat.
+    :return: Reformatted string.
     """
+
     stats = str(stats)[1:-1].split(',')
     stats[0] = stats[0].strip("'")
-    stats = ','.join(stats)
+    stats = u','.join(stats)
     return stats
 
 
