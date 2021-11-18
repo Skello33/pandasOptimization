@@ -11,7 +11,7 @@ here <https://community.amstat.org/jointscsg-section/dataexpo/dataexpo2009>.
 
 ### Demo description
 
-Writes the results from the task runs into a ***.csv*** file and can show the system resource usage for the tasks in a
+Gathers the system resource usage from the task runs into a ***.csv*** file and can display them in a
 ***plotly*** graph. ***DASK*** and ***MODIN*** tasks require a cluster for the execution, whose address can be specified
 through command line options, otherwise it will be created during the program run.
 
