@@ -2,6 +2,7 @@ import multiprocessing
 import resource
 from argparse import Namespace
 
+import dask
 import numpy as np
 import pandas as pd
 import modin.pandas as mpd
@@ -9,7 +10,11 @@ from resource import getrusage, RUSAGE_SELF
 
 from distributed import Client
 import dask.dataframe as dd
+from dask_memusage import install
+from dask.distributed import performance_report
+
 from typing import Tuple
+
 import timeit as ti
 from multiprocessing import Pool, Process, Queue
 from glob import glob
@@ -64,17 +69,20 @@ def pandas_main(args: Namespace) -> Tuple[str, int, float]:
     start_time = ti.default_timer()
     if len(files) == 1:
         queue = Queue()
-        p = Process(target=pandas_single, args=(args.path, queue), name='pandas')
+        p = Process(target=pandas_single, args=(files[0], queue), name=u'pandas_single_file')
         p.start()
         p.join()
-        output = queue.get()
+        mem_usage = queue.get()
     elif len(files) > 1:
-        pandas_more(files)
+        queue = Queue()
+        p = Process(target=pandas_more, args=(files, queue), name=u'pandas_more_files')
+        p.start()
+        p.join()
+        mem_usage = queue.get()
     else:
-        raise Exception(u'Something is wrong!')
-
+        raise FileNotFoundError(u'Something is wrong with the files!')
     duration = ti.default_timer() - start_time
-    return 'pandas', output, duration
+    return 'pandas', mem_usage, duration
 
 
 def pandas_single(file: str, queue: multiprocessing.Queue):
@@ -87,16 +95,26 @@ def pandas_single(file: str, queue: multiprocessing.Queue):
     df = pd.read_csv(file, dtype=_dtype, usecols=cols)
     result = df['DepDelay'].mean()
     print(u'Dep avg is {}'.format(result))
-    output = format_usage(getrusage(set_usage()))
-    queue.put(output)
+    mem_usage = format_usage(getrusage(set_usage()))
+    queue.put(mem_usage)
     df.head()
 
 
-def pandas_more(files: list):
-    """not working properly yet"""
+def pandas_more(files: list, queue: multiprocessing.Queue):
+    """Executes the pandas task on multiple data files.
+
+    :param files: Path to the data files.
+    :param queue: Queue for subprocess data storing.
+    """
+
+    sums, counts = [], []
     for file in files:
         df = pd.read_csv(file, dtype=_dtype, usecols=cols)
-        df.head()
+        sums.append(df['DepDelay'].sum())
+        counts.append(df['DepDelay'].count())
+    print(u'Dep avg is {}'.format(sum(sums) / sum(counts)))
+    mem_usage = format_usage(getrusage(set_usage()))
+    queue.put(mem_usage)
 
 
 def dask_subp(args: Namespace) -> Tuple[str, int, float]:
@@ -108,13 +126,13 @@ def dask_subp(args: Namespace) -> Tuple[str, int, float]:
 
     queue = Queue()
     p = Process(target=dask_main, args=(args, queue), name='dask')
-    start_time = ti.default_timer()
     p.start()
     p.join()
 
-    output = queue.get()
-    duration = ti.default_timer() - start_time
-    return 'dask', output, duration
+    # get usage data from subprocess
+    mem_usage = queue.get()
+    duration = queue.get()
+    return 'dask', mem_usage, duration
 
 
 def dask_main(args: Namespace, queue: multiprocessing.Queue):
@@ -124,18 +142,28 @@ def dask_main(args: Namespace, queue: multiprocessing.Queue):
     :param queue: Queue for subprocess data storing.
     """
 
+    # cluster start/bind
     if args.cluster is None:
         client = Client()
     else:
         client = Client(args.cluster)
 
-    # start_time = ti.default_timer()
     print('DASK started...')
-    dask_task(args.path)
-    output = format_usage(getrusage(set_usage()))
-    queue.put(output)
+    start_time = ti.default_timer()
+    # print(client.dashboard_link)
 
-    # duration = ti.default_timer() - start_time
+    # with performance_report('dask_report.html'):
+    #     dask_task(args.path)
+
+    dask_task(args.path)
+
+    # gather usage data
+    mem_usage = format_usage(getrusage(set_usage()))
+    duration = ti.default_timer() - start_time
+    queue.put(mem_usage)
+    queue.put(duration)
+
+    # cluster close if it was locally started
     if args.cluster is None:
         client.close()
 
@@ -167,9 +195,9 @@ def multiproc_subp(args: Namespace) -> Tuple[str, int, float]:
     p.start()
     p.join()
 
-    output = queue.get()
+    mem_usage = queue.get()
     duration = ti.default_timer() - start_time
-    return 'multiproc', output, duration
+    return 'multiproc', mem_usage, duration
 
 
 def multiproc_main(args: Namespace, queue: multiprocessing.Queue):
@@ -189,8 +217,8 @@ def multiproc_main(args: Namespace, queue: multiprocessing.Queue):
             del_sum += x
             del_cnt += y
         print('Dep avg is {}'.format(del_sum / del_cnt))
-    usage = format_usage(getrusage(set_usage()))
-    queue.put(usage)
+    mem_usage = format_usage(getrusage(set_usage()))
+    queue.put(mem_usage)
 
 
 def multiproc_task(df: pd.DataFrame) -> Tuple[int, int]:
@@ -214,13 +242,15 @@ def modin_subp(args: Namespace) -> Tuple[str, int, float]:
 
     queue = Queue()
     p = Process(target=modin_main, args=(args, queue), name='modin')
-    start_time = ti.default_timer()
+    # start_time = ti.default_timer()
     p.start()
     p.join()
 
-    output = queue.get()
-    duration = ti.default_timer() - start_time
-    return 'modin', output, duration
+    # get usage data from subprocess
+    mem_usage = queue.get()
+    duration = queue.get()
+    # duration = ti.default_timer() - start_time
+    return 'modin', mem_usage, duration
 
 
 def modin_main(args: Namespace, queue: multiprocessing.Queue):
@@ -230,20 +260,27 @@ def modin_main(args: Namespace, queue: multiprocessing.Queue):
     :param queue: Queue for subprocess data storing.
     """
 
+    # cluster start/bind
     files = glob(args.path)
     if args.cluster is None:
         client = Client()
     else:
         client = Client(args.cluster)
-    # start_time = ti.default_timer()
+
+    start_time = ti.default_timer()
     print('MODIN started...')
     if len(files) == 1:
-        modin_single(args.path)
+        modin_single(files[0])
     elif len(files) > 1:
         modin_more(files)
-    output = format_usage(getrusage(set_usage()))
-    queue.put(output)
-    # duration = ti.default_timer() - start_time
+
+    # gather usage data
+    mem_usage = format_usage(getrusage(set_usage()))
+    duration = ti.default_timer() - start_time
+    queue.put(mem_usage)
+    queue.put(duration)
+
+    # cluster close if it was locally started
     if args.cluster is None:
         client.close()
 
@@ -261,5 +298,14 @@ def modin_single(file: str):
 
 
 def modin_more(files: list):
-    """not implemented yet"""
-    pass
+    """Executes the modin task on multiple data files.
+
+    :param files: Path to the data files.
+    """
+
+    sums, counts = [], []
+    for file in files:
+        df = mpd.read_csv(file, dtype=_dtype, usecols=cols)
+        sums.append(df['DepDelay'].sum())
+        counts.append(df['DepDelay'].count())
+    print(u'Dep avg is {}'.format(sum(sums) / sum(counts)))
