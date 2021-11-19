@@ -6,24 +6,20 @@ import tasks
 
 
 def run_tasks(arg: argparse.Namespace) -> list:
-    """Runs the demo tasks and gathers resource usage statistics.
+    """Runs the specified demo tasks.
 
-    :param arg: Parsed arguments from the command line.
-    :return: List of gathered usage statistics.
+    :param arg: Parsed command line arguments.
+    :return: Task resource usage data.
     """
 
-    functions = {
-        u'pandas': tasks.pandas_main,
-        u'modin': tasks.modin_subp,
-        u'multiproc': tasks.multiproc_subp,
-        u'dask': tasks.dask_subp
-    }
+    task_list = [u'pandas', u'dask', u'modin', u'multiproc']
+
     if arg.task is None:
-        result = [functions[func](arg) for func in functions]
+        tasks_to_run = task_list
     else:
-        result = []
-        for task in arg.task:
-            result.append(functions[task](arg))
+        tasks_to_run = arg.task
+
+    result = [tasks.manage_subprocess(arg, task_name) for task_name in tasks_to_run]
     return result
 
 
