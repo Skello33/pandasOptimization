@@ -1,10 +1,11 @@
+import multiprocessing
 import resource
 from argparse import Namespace
 
 import numpy as np
 import pandas as pd
 import modin.pandas as mpd
-from resource import *
+from resource import getrusage, RUSAGE_SELF
 
 from distributed import Client
 import dask.dataframe as dd
@@ -15,6 +16,10 @@ from glob import glob
 
 
 def set_usage() -> int:
+    """Sets the parameter for getrusage function.
+
+    :return: Parameter for getrusage.
+    """
     return RUSAGE_SELF
 
 
@@ -72,7 +77,7 @@ def pandas_main(args: Namespace) -> Tuple[str, int, float]:
     return 'pandas', output, duration
 
 
-def pandas_single(file: str, queue: Queue):
+def pandas_single(file: str, queue: multiprocessing.Queue):
     """Execute the pandas task on a single data file.
 
     :param file: Path to the file containing task data.
@@ -112,7 +117,7 @@ def dask_subp(args: Namespace) -> Tuple[str, int, float]:
     return 'dask', output, duration
 
 
-def dask_main(args: Namespace, queue: Queue):
+def dask_main(args: Namespace, queue: multiprocessing.Queue):
     """Executes the dask task on the cluster.
 
     :param args: Parsed command line arguments.
@@ -144,7 +149,6 @@ def dask_task(files: str):
     df = dd.read_csv(files, dtype=_dtype, usecols=cols)
     result = df['DepDelay'].mean().compute()
     df.head()
-    # TODO add other tasks
     print('Dep avg is {}'.format(result))
 
 
@@ -168,7 +172,7 @@ def multiproc_subp(args: Namespace) -> Tuple[str, int, float]:
     return 'multiproc', output, duration
 
 
-def multiproc_main(args: Namespace, queue: Queue):
+def multiproc_main(args: Namespace, queue: multiprocessing.Queue):
     """Executes the multiprocessing task over the Pool of processes.
 
     :param args: Parsed command line arguments.
@@ -219,7 +223,7 @@ def modin_subp(args: Namespace) -> Tuple[str, int, float]:
     return 'modin', output, duration
 
 
-def modin_main(args: Namespace, queue: Queue):
+def modin_main(args: Namespace, queue: multiprocessing.Queue):
     """Executes the modin task on the cluster.
 
     :param args: Parsed command line arguments.
