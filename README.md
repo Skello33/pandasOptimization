@@ -22,13 +22,16 @@ PATH [--cluster ADDRESS] [--task {pandas,dask,multiproc,modin} [{pandas,dask,mul
 
 ##### optional arguments:
 
-- -h, --help => show this help message and exit
-- -p PATH, --path PATH => path to the file with dataset
-- --cluster ADDRESS =>  address of the remote cluster that should be used, if not specified, program uses a locally
-  created cluster
-- --task {pandas,dask,multiproc,modin} [{pandas,dask,multiproc,modin} ...]
-  => specify which tasks to execute, if not specified, all tasks will be run
-- --file FILE => specify the file where the program should write usage statistics from its runs, uses usage_stats.csv as
-  default if not specified
-- --plot => display the usage statistics graph
+optional arguments:
+
+- -h, --help => Show this help message and exit.
+- -p PATH, --path PATH => Path to the file with dataset.
+- --cluster ADDRESS => Address of the remote cluster that should be used, if not specified, program uses a locally created
+  cluster.
+- --task {pandas,dask,multiproc,modin} [{pandas,dask,multiproc,modin} ...] =>
+  Specify which tasks to execute, if not specified, all tasks will be run.
+- --file FILE => Specify the file where the program should write usage statistics from its runs, uses usage_stats.csv as
+  default if not specified.
+- --plot => Display the usage statistics graph.
+
 

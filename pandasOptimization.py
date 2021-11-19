@@ -63,14 +63,14 @@ def create_parser() -> argparse.ArgumentParser:
         type=str,
         required=False,
         default=u'usage_stats.csv',
-        help=u'specify the file where the program should write usage statistics from its runs, '
-             u'uses usage_stats.csv as default if not specified'
+        help=u'Specify the file where the program should write usage statistics from its runs, '
+             u'uses usage_stats.csv as default if not specified.'
     )
     new_parser.add_argument(
         u'--plot',
         required=False,
         action=u'store_true',
-        help=u'display the usage statistics graph'
+        help=u'Display the usage statistics graph.'
     )
     return new_parser
 
@@ -151,11 +151,11 @@ def modify_stats(stats: list) -> str:
 
 if __name__ == '__main__':
 
-    """parse input options"""
+    # parse input options
     parser = create_parser()
     args = parser.parse_args()
 
-    """run tasks and write the results"""
+    # run tasks and write the results
     usage_results = run_tasks(args)
     write_results(usage_results, args.file)
 
