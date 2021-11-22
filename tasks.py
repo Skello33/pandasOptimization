@@ -1,4 +1,4 @@
-
+import multiprocessing
 import resource
 from argparse import Namespace
 from resource import getrusage, RUSAGE_SELF
@@ -23,6 +23,7 @@ def set_usage() -> int:
 
     :return: Parameter for getrusage.
     """
+
     return RUSAGE_SELF
 
 
@@ -191,15 +192,17 @@ def multiproc_main(args: Namespace, queue: Queue):
     # todo try to improve multiprocessing logic and performance
 
     print('MULTIPROC started...')
-    start_time = ti.default_timer()
-
+    num_cores = 4
     files = glob(args.path)
-    if len(files) == 1:
-        multiproc_single(files[0])
-    elif len(files) > 1:
-        multiproc_more(files)
-    else:
-        raise FileNotFoundError(u'Something is wrong with the files!')
+    with Pool(num_cores) as pool:
+
+        start_time = ti.default_timer()
+        if len(files) == 1:
+            multiproc_single(files[0], pool)
+        elif len(files) > 1:
+            multiproc_more(files, pool)
+        else:
+            raise FileNotFoundError(u'Something is wrong with the files!')
 
     # gather usage data
     duration = ti.default_timer() - start_time
@@ -208,39 +211,40 @@ def multiproc_main(args: Namespace, queue: Queue):
     queue.put(duration)
 
 
-def multiproc_single(file: str, control_print: bool = True) -> Tuple[int, int]:
+def multiproc_single(file: str, pool: Pool, control_print: bool = True, num_cores: int = 4) -> Tuple[int, int]:
     """Executes the task with Pool of processes.
 
-    :param control_print: Determine if control output should be printed.
     :param file: Path to the data file for task.
+    :param pool: Pool of worker processes for task execution.
+    :param control_print: Determine if control output should be printed.
+    :param num_cores: Specify number of cores on the machine.
     """
 
-    num_cores = 4
     df = pd.read_csv(file, dtype=_dtype, usecols=cols)
     df_split = np.array_split(df, num_cores)
 
     del_sum, del_cnt = 0, 0
-    with Pool(num_cores) as pool:
-        output = pool.map(multiproc_task, df_split)
-        for x, y in output:
-            del_sum += x
-            del_cnt += y
-        if control_print:
-            print('Dep avg is {}'.format(del_sum / del_cnt))
+    output = pool.imap(multiproc_task, df_split)
+    for x, y in output:
+        del_sum += x
+        del_cnt += y
+    if control_print:
+        print('Dep avg is {}'.format(del_sum / del_cnt))
 
     return del_sum, del_cnt
 
 
-def multiproc_more(files: list):
+def multiproc_more(files: list, pool: Pool):
     """Executes the task over multiple files.
 
     :param files: Path to the files.
+    :param pool: Pool of worker processes for task execution.
     """
 
     sums, counts = [], []
 
     for file in files:
-        del_sum, del_cnt = multiproc_single(file, False)
+        del_sum, del_cnt = multiproc_single(file, pool, False)
         sums.append(del_sum)
         counts.append(del_cnt)
 

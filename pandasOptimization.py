@@ -19,7 +19,9 @@ def run_tasks(arg: argparse.Namespace) -> list:
     else:
         tasks_to_run = arg.task
 
-    result = [tasks.manage_subprocess(arg, task_name) for task_name in tasks_to_run]
+    result = []
+    for _ in range(arg.runs):
+        result.extend([tasks.manage_subprocess(arg, task_name) for task_name in tasks_to_run])
     return result
 
 
@@ -67,6 +69,13 @@ def create_parser() -> argparse.ArgumentParser:
         required=False,
         action=u'store_true',
         help=u'Display the usage statistics graph.'
+    )
+    new_parser.add_argument(
+        u'-r', u'--runs',
+        type=int,
+        required=False,
+        default=1,
+        help=u'Specify the number of runs for each task, run once if not specified.'
     )
     return new_parser
 
@@ -120,6 +129,7 @@ def write_results(result: list, file: str):
             f.write(u'task,max_mem_usage,total_time\n')
     finally:
         f.close()
+
     with open(file, 'a') as f:
         # write if multiple tasks were run
         if isinstance(result[0], tuple):
