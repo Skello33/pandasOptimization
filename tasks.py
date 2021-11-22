@@ -1,4 +1,3 @@
-import multiprocessing
 import resource
 from argparse import Namespace
 from resource import getrusage, RUSAGE_SELF
@@ -56,6 +55,17 @@ def format_usage(usage: resource.struct_rusage) -> int:
     return usage.ru_maxrss
 
 
+def gather_usage(start_time: float, queue: Queue):
+    """Gather resource usage data and put them into queue.
+
+    :param start_time: Task start time.
+    :param queue: Queue for subprocess data storing.
+    """
+
+    queue.put(format_usage(getrusage(set_usage())))
+    queue.put(ti.default_timer() - start_time)
+
+
 def manage_subprocess(args: Namespace, task: str) -> Tuple[str, int, float]:
     """Spawns a subprocess and executes the specified task in it.
 
@@ -105,10 +115,7 @@ def pandas_main(args: Namespace, queue: Queue):
         raise FileNotFoundError(u'Something is wrong with the files!')
 
     # gather usage data
-    duration = ti.default_timer() - start_time
-    mem_usage = format_usage(getrusage(set_usage()))
-    queue.put(mem_usage)
-    queue.put(duration)
+    gather_usage(start_time, queue)
 
 
 def pandas_single(file: str):
@@ -160,10 +167,7 @@ def dask_main(args: Namespace, queue: Queue):
     dask_task(args.path)
 
     # gather usage data
-    mem_usage = format_usage(getrusage(set_usage()))
-    duration = ti.default_timer() - start_time
-    queue.put(mem_usage)
-    queue.put(duration)
+    gather_usage(start_time, queue)
 
     # cluster close if it was locally started
     if args.cluster is None:
@@ -205,10 +209,7 @@ def multiproc_main(args: Namespace, queue: Queue):
             raise FileNotFoundError(u'Something is wrong with the files!')
 
     # gather usage data
-    duration = ti.default_timer() - start_time
-    mem_usage = format_usage(getrusage(set_usage()))
-    queue.put(mem_usage)
-    queue.put(duration)
+    gather_usage(start_time, queue)
 
 
 def multiproc_single(file: str, pool: Pool, control_print: bool = True, num_cores: int = 4) -> Tuple[int, int]:
@@ -285,10 +286,7 @@ def modin_main(args: Namespace, queue: Queue):
         modin_more(files)
 
     # gather usage data
-    mem_usage = format_usage(getrusage(set_usage()))
-    duration = ti.default_timer() - start_time
-    queue.put(mem_usage)
-    queue.put(duration)
+    gather_usage(start_time, queue)
 
     # cluster close if it was locally started
     if args.cluster is None:
